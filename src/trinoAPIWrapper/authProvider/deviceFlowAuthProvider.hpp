@@ -6,12 +6,10 @@
 #include "authConfig.hpp"
 
 std::unique_ptr<AuthConfig>
-getClientCredAuthProvider(std::string hostname,
+getDeviceFlowAuthProvider(std::string hostname,
                           unsigned short port,
                           std::string connectionName,
                           std::string oidcDiscoveryUrl,
                           std::string clientId,
                           std::string clientSecret,
-                          std::string oidcScope,
-                          std::string grantType,
-                          std::string tokenEndpoint);
+                          std::string oidcScope);

@@ -1,3 +1,5 @@
+#include <regex>
+
 #include "clientCredAuthProvider.hpp"
 
 #include "nlohmann/json.hpp"
@@ -12,7 +14,8 @@ using json = nlohmann::json;
 std::string urlEncode(CURL* curl, std::string s) {
   // Wrap curl_easy_escape so we can make sure any memory
   // allocated is immediately freed.
-  char* encoded        = curl_easy_escape(curl, s.c_str(), s.length());
+  char* encoded =
+      curl_easy_escape(curl, s.c_str(), static_cast<int>(s.length()));
   std::string toReturn = std::string(encoded);
   curl_free(encoded);
   return toReturn;
@@ -26,27 +29,39 @@ struct ClientCredAuthParams {
     std::string* clientId                                  = nullptr;
     std::string* clientSecret                              = nullptr;
     std::string* scope                                     = nullptr;
+    std::string* grantType                                 = nullptr;
+    std::string* tokenEndpoint                             = nullptr;
     std::string* responseData                              = nullptr;
     std::map<std::string, std::string>* responseHeaderData = nullptr;
     std::map<std::string, std::string>* requestHeaders     = nullptr;
 };
 
 std::string refreshClientCredAuth(ClientCredAuthParams& params) {
-  // Obtain the OIDC Discovery data.
-  curl_easy_setopt(params.curl, CURLOPT_URL, params.oidcDiscoveryUrl->c_str());
-  CURLcode res1 = curl_easy_perform(params.curl);
-  WriteLog(LL_DEBUG,
-           "  OIDC discovery CURLcode response was: " + std::to_string(res1));
-  json discoveryData = json::parse(*params.responseData);
+  std::string tokenEndpoint;
 
-  // Obtain the token endpoint that provides tokens in exchange for
-  // client credentials.
-  std::string tokenEndpoint = discoveryData["token_endpoint"];
-  WriteLog(LL_TRACE, "  Token Endpoint Was: " + tokenEndpoint);
+  if (params.tokenEndpoint->empty()) {
+    // Obtain the OIDC Discovery data.
+    curl_easy_setopt(
+        params.curl, CURLOPT_URL, params.oidcDiscoveryUrl->c_str());
+    CURLcode res1 = curl_easy_perform(params.curl);
+    WriteLog(LL_DEBUG,
+             "  OIDC discovery CURLcode response was: " + std::to_string(res1));
+    json discoveryData = json::parse(*params.responseData);
+
+    // Obtain the token endpoint that provides tokens in exchange for
+    // client credentials.
+    tokenEndpoint = discoveryData["token_endpoint"];
+    WriteLog(LL_TRACE, "  OIDC token Endpoint Was: " + tokenEndpoint);
+  } else {
+    tokenEndpoint = *params.tokenEndpoint;
+    WriteLog(LL_TRACE,
+             "  Configured OIDC token Endpoint Was: " + tokenEndpoint);
+  }
 
   // Construct a POST body for the token endpoint.
   // It must use x-www-form-urlencoded encoding.
-  std::string grantType           = "client_credentials";
+  std::string grantType =
+      params.grantType->empty() ? "client_credentials" : *params.grantType;
   std::string clientId            = *params.clientId;
   std::string clientSecret        = *params.clientSecret;
   std::string scope               = *params.scope;
@@ -58,7 +73,6 @@ std::string refreshClientCredAuth(ClientCredAuthParams& params) {
   oss << "grant_type=" << encodedGrantType;
   oss << "&client_id=" << encodedClientId;
   oss << "&client_secret=" << encodedClientSecret;
-  oss << "&scope=" << encodedScope;
   std::string tokenPost = oss.str();
 
   // POST the creds and required data to exchange it for a token
@@ -92,6 +106,8 @@ class ClientCredAuthConfig : public TokenCacheAuthProviderBase {
     std::string clientId;
     std::string clientSecret;
     std::string scope;
+    std::string grantType;
+    std::string tokenEndpoint;
 
   public:
     ClientCredAuthConfig(std::string hostname,
@@ -100,13 +116,17 @@ class ClientCredAuthConfig : public TokenCacheAuthProviderBase {
                          std::string oidcDiscoveryUrl,
                          std::string clientId,
                          std::string clientSecret,
-                         std::string scope)
+                         std::string scope,
+                         std::string grantType,
+                         std::string tokenEndpoint)
         : TokenCacheAuthProviderBase(hostname, port, connectionName) {
       // The other parameters are used by base classes.
       this->oidcDiscoveryUrl = oidcDiscoveryUrl;
       this->clientId         = clientId;
       this->clientSecret     = clientSecret;
       this->scope            = scope;
+      this->grantType        = grantType;
+      this->tokenEndpoint    = tokenEndpoint;
     }
 
 
@@ -125,6 +145,8 @@ class ClientCredAuthConfig : public TokenCacheAuthProviderBase {
       params.clientId           = &this->clientId;
       params.clientSecret       = &this->clientSecret;
       params.scope              = &this->scope;
+      params.grantType          = &this->grantType;
+      params.tokenEndpoint      = &this->tokenEndpoint;
 
       return refreshClientCredAuth(params);
     }
@@ -139,8 +161,10 @@ getClientCredAuthProvider(std::string hostname,
                           std::string oidcDiscoveryUrl,
                           std::string clientId,
                           std::string clientSecret,
-                          std::string oidcScope) {
-  if (connectionName.empty()) {
+                          std::string oidcScope,
+                          std::string grantType,
+                          std::string tokenEndpoint) {
+  if (connectionName.empty() && grantType.empty() && tokenEndpoint.empty()) {
     // If there is no connection name, that means this is a connection
     // defined entirely by the connection string. In that case we can
     // substitute the clientId and scope together as the name. This is
@@ -153,7 +177,9 @@ getClientCredAuthProvider(std::string hostname,
                                                   oidcDiscoveryUrl,
                                                   clientId,
                                                   clientSecret,
-                                                  oidcScope);
+                                                  oidcScope,
+                                                  grantType,
+                                                  tokenEndpoint);
   } else {
     return std::make_unique<ClientCredAuthConfig>(hostname,
                                                   port,
@@ -161,6 +187,8 @@ getClientCredAuthProvider(std::string hostname,
                                                   oidcDiscoveryUrl,
                                                   clientId,
                                                   clientSecret,
-                                                  oidcScope);
+                                                  oidcScope,
+                                                  grantType,
+                                                  tokenEndpoint);
   }
 }

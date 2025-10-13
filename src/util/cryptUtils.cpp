@@ -9,6 +9,38 @@
 
 #include "writeLog.hpp"
 
+// Helper function to extract filename from a full path
+std::string_view getFileName(std::string_view path) {
+  auto const pos = path.find_last_of("/\\");
+  if (pos == std::string_view::npos) {
+    return path;
+  }
+  return path.substr(pos + 1);
+}
+
+// Helper function to get the last Windows error message
+std::string getLastErrorAsString() {
+  DWORD errorMessageID = ::GetLastError();
+  if (errorMessageID == 0) {
+    return std::string(); // No error message has been recorded
+  }
+
+  LPSTR messageBuffer = nullptr;
+  size_t size         = FormatMessageA(FORMAT_MESSAGE_ALLOCATE_BUFFER |
+                                   FORMAT_MESSAGE_FROM_SYSTEM |
+                                   FORMAT_MESSAGE_IGNORE_INSERTS,
+                               NULL,
+                               errorMessageID,
+                               MAKELANGID(LANG_NEUTRAL, SUBLANG_DEFAULT),
+                               (LPSTR)&messageBuffer,
+                               0,
+                               NULL);
+
+  std::string message(messageBuffer, size);
+  LocalFree(messageBuffer);
+  return std::to_string(errorMessageID) + ": " + message;
+}
+
 std::string toBase64(const std::vector<BYTE>& data) {
   DWORD requiredSize = 0;
   // Calling with a null size pointer causes the function to calculate the
@@ -79,14 +111,17 @@ std::string encryptString(const std::string& text, DWORD flags) {
   DATA_BLOB dataIn;
   DATA_BLOB dataOut = {0};
   BYTE* pbDataInput = (BYTE*)text.data();
-  DWORD cbDataInput = text.length();
+  DWORD cbDataInput = static_cast<DWORD>(text.length());
 
   dataIn.pbData = pbDataInput;
   dataIn.cbData = cbDataInput;
 
   if (!CryptProtectData(&dataIn, NULL, NULL, NULL, NULL, flags, &dataOut)) {
-    throw std::runtime_error("Encryption Failed");
+    throw std::runtime_error(
+        "Encryption Failed at " + std::string(getFileName(__FILE__)) + ":" +
+        std::to_string(__LINE__) + " - " + getLastErrorAsString());
   }
+
   std::vector<BYTE> encryptedData(dataOut.pbData,
                                   dataOut.pbData + dataOut.cbData);
   LocalFree(dataOut.pbData);
@@ -115,8 +150,11 @@ std::string decryptString(const std::string& text, DWORD flags) {
   dataIn.cbData = static_cast<DWORD>(encryptedData.size());
 
   if (!CryptUnprotectData(&dataIn, NULL, NULL, NULL, NULL, 0, &dataOut)) {
-    throw std::runtime_error("Decryption Failed");
+    throw std::runtime_error(
+        "Decryption Failed at " + std::string(getFileName(__FILE__)) + ":" +
+        std::to_string(__LINE__) + " - " + getLastErrorAsString());
   }
+
   std::string decryptedString(reinterpret_cast<char*>(dataOut.pbData),
                               dataOut.cbData);
   LocalFree(dataOut.pbData);
