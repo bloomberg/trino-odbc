@@ -6,8 +6,10 @@
 #include <ranges>
 #include <thread>
 
+#include "TrinoOdbcErrorHandler.hpp"
 #include "trinoExceptions.hpp"
 #include "trinoQuery.hpp"
+
 #include <stdexcept>
 
 #include "../util/delimKvpHelper.hpp"
@@ -17,6 +19,71 @@
 // How long should we poll between requests to Trino's nextUri?
 int API_POLL_INTERVAL_MS = 25;
 
+TrinoQuery::TrinoQuery(ConnectionConfig* connectionConfig) {
+  this->connectionConfig = connectionConfig;
+  this->connectionConfig->registerDisconnectCallback(
+      std::bind(&TrinoQuery::onConnectionReset, this, std::placeholders::_1));
+}
+
+TrinoQuery::~TrinoQuery() {
+  this->connectionConfig->unregisterDisconnectCallback(
+      std::bind(&TrinoQuery::onConnectionReset, this, std::placeholders::_1));
+}
+
+std::string TrinoQuery::parseTrinoError(const json& errorJson) {
+  std::ostringstream oss;
+
+  if (!(errorJson.contains("errorName") && errorJson.contains("errorType") &&
+        errorJson.contains("errorCode"))) {
+    return oss.str();
+  }
+
+  std::string errorName = errorJson["errorName"].get<std::string>();
+  std::string errorType = errorJson["errorType"].get<std::string>();
+  int errorCode         = errorJson["errorCode"].get<int>();
+
+  oss << "Trino Error Information(queryId:" << getQueryId() << ")\n"
+      << "\tError Type: " << errorType << "\n"
+      << "\tError Code: " << errorName << "(" << errorCode << ")\n";
+
+  // Top-level error message
+  if (errorJson.contains("message")) {
+    oss << "\tMessage: " << errorJson["message"].get<std::string>() << "\n";
+  }
+
+  // Failure info (nested error details)
+  if (errorJson.contains("failureInfo")) {
+    auto failureInfo = errorJson["failureInfo"];
+
+    if (failureInfo.contains("stack")) {
+      oss << "\tStack:\n";
+      for (const auto& frame : failureInfo["stack"]) {
+        oss << "\t\t" << frame.get<std::string>() << "\n";
+      }
+    }
+
+    // Cause (nested stack)
+    if (failureInfo.contains("cause") &&
+        failureInfo["cause"].contains("type") &&
+        failureInfo["cause"].contains("stack")) {
+      oss << "\tCaused By: " << failureInfo["cause"]["type"] << "\n";
+      for (const auto& frame : failureInfo["cause"]["stack"]) {
+        oss << "\t\t" << frame.get<std::string>() << "\n";
+      }
+    }
+  }
+
+  // Top-level stack (rare, but possible?)
+  if (errorJson.contains("stack")) {
+    oss << "\tTop Stack:\n";
+    for (const auto& frame : errorJson["stack"]) {
+      oss << "\t\t" << frame.get<std::string>() << "\n";
+    }
+  }
+
+  return oss.str();
+}
+
 UpdateStatus TrinoQuery::updateSelfFromResponse() {
   WriteLog(LL_TRACE, "  Entering TrinoQuery::updateSelfFromResponse");
   json response_json = json::parse(this->connectionConfig->responseData);
@@ -25,10 +92,20 @@ UpdateStatus TrinoQuery::updateSelfFromResponse() {
 
   if (response_json.contains("error")) {
     this->error = true;
+    std::string errorDetails;
+    // errorDetails = parseTrinoError(response_json["error"]);
+
+    odbcError = TrinoOdbcErrorHandler::FromTrinoJson(response_json["error"],
+                                                     getQueryId());
+
+    WriteLog(LL_ERROR,
+             TrinoOdbcErrorHandler::OdbcErrorToString(odbcError.value(), true));
   }
 
   if (response_json.contains("queryId")) {
-    this->queryId = response_json["queryId"];
+    setQueryId(response_json["queryId"]);
+  } else if (response_json.contains("id")) {
+    setQueryId(response_json["id"]);
   }
 
   if (response_json.contains("infoUri")) {
@@ -100,17 +177,6 @@ void TrinoQuery::onConnectionReset(ConnectionConfig* connectionConfig) {
   this->terminate();
 }
 
-TrinoQuery::TrinoQuery(ConnectionConfig* connectionConfig) {
-  this->connectionConfig = connectionConfig;
-  this->connectionConfig->registerDisconnectCallback(
-      std::bind(&TrinoQuery::onConnectionReset, this, std::placeholders::_1));
-}
-
-TrinoQuery::~TrinoQuery() {
-  this->connectionConfig->unregisterDisconnectCallback(
-      std::bind(&TrinoQuery::onConnectionReset, this, std::placeholders::_1));
-}
-
 void TrinoQuery::setQuery(std::string query) {
   this->query = query;
 }
@@ -127,6 +193,10 @@ void TrinoQuery::post() {
   curl_easy_setopt(curl, CURLOPT_POSTFIELDS, query.c_str());
 
   CURLcode res = curl_easy_perform(curl);
+
+  if (res != CURLE_OK) {
+    WriteLog(LL_ERROR, std::string("CURL error: ") + curl_easy_strerror(res));
+  }
 
   long httpStatusCode = this->connectionConfig->getLastHTTPStatusCode();
 
@@ -330,6 +400,7 @@ void TrinoQuery::reset() {
   this->error             = false;
   this->completed         = false;
   this->rowOffsetPosition = -1;
+  this->odbcError         = std::nullopt;
 }
 
 void TrinoQuery::registerColumnDataChangeCallback(
@@ -395,3 +466,23 @@ const json& TrinoQuery::getRowAtIndex(int64_t index) const {
     return this->dataJson[static_cast<std::vector<json>::size_type>(index)];
   }
 }
+
+void TrinoQuery::setQueryId(const std::string& id) {
+  queryId = id;
+}
+
+const std::string& TrinoQuery::getQueryId() const {
+  return queryId;
+}
+
+const bool TrinoQuery::hasError() const {
+  if (odbcError.has_value()) {
+    return true;
+  } else {
+    return false;
+  }
+}
+
+const TrinoOdbcErrorHandler::OdbcError& TrinoQuery::getError() const {
+  return odbcError.value();
+};

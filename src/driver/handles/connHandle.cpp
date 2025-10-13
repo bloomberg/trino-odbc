@@ -18,9 +18,19 @@ std::string Connection::getServerVersion() {
   return this->connectionConfig->getTrinoServerVersion();
 }
 
+void Connection::checkInputs(DriverConfig config) {
+  if (config.getHostname().empty()) {
+    throw std::invalid_argument("hostname cannot be empty");
+  } else if (!config.getPortNum()) {
+    throw std::invalid_argument("port cannot be empty");
+  }
+}
+
 void Connection::configure(DriverConfig config) {
   // This instantiates a driver config object on the heap.
   // The destructor will clean it up if that's happened.
+  checkInputs(config);
+
   this->connectionConfig = new ConnectionConfig(config.getHostname(),
                                                 config.getPortNum(),
                                                 config.getAuthMethodEnum(),
@@ -28,7 +38,9 @@ void Connection::configure(DriverConfig config) {
                                                 config.getOidcDiscoveryUrl(),
                                                 config.getClientId(),
                                                 config.getClientSecret(),
-                                                config.getOidcScope());
+                                                config.getOidcScope(),
+                                                config.getGrantType(),
+                                                config.getTokenEndpoint());
 }
 
 void Connection::setError(ErrorInfo errorInfo) {

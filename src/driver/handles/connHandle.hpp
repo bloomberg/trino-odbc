@@ -29,4 +29,6 @@ class Connection {
     std::string getServerVersion();
     void setError(ErrorInfo errorInfo);
     ErrorInfo getError();
+
+    void checkInputs(DriverConfig config);
 };

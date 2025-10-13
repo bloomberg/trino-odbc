@@ -52,6 +52,8 @@ class TrinoQuery {
     int64_t rowOffsetPosition = -1;
     UpdateStatus updateSelfFromResponse();
     void onConnectionReset(ConnectionConfig* connectionConfig);
+    std::string parseTrinoError(const json& errorJson);
+    std::optional<TrinoOdbcErrorHandler::OdbcError> odbcError;
 
     friend class MemoryReclamationTest;
 
@@ -75,4 +77,9 @@ class TrinoQuery {
     const bool hasColumnData() const;
     void checkpointRowPosition(int64_t completedIndex);
     const json& getRowAtIndex(int64_t) const;
+
+    void setQueryId(const std::string& id);
+    const std::string& getQueryId() const; // <-- Add this getter
+    const bool hasError() const;
+    const TrinoOdbcErrorHandler::OdbcError& getError() const;
 };
