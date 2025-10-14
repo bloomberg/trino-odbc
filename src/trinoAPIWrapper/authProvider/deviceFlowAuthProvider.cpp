@@ -77,6 +77,7 @@ std::string refreshDeviceCredAuth(ClientCredAuthParams& params) {
       headers, "Content-Type: application/x-www-form-urlencoded");
   curl_easy_setopt(params.curl, CURLOPT_HTTPHEADER, headers);
   CURLcode res2 = curl_easy_perform(params.curl);
+  curl_slist_free_all(headers); // Always free curl headers to avoid memory leaks
   WriteLog(LL_DEBUG,
            "  Token endpoint HTTP response code was: " + std::to_string(res2));
 
