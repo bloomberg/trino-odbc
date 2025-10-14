@@ -24,7 +24,7 @@ Microsoft in any way.
 ### :warning: Disclaimer: Scope and Limitations :warning:
 
 This driver is tested to work within a very narrow scope on Windows
-PCs configured for use within our organization. Specifically, we target
+PCs and servers that utilize BI tools. Specifically, we target
 compatibility with Microsoft Excel and PowerBI Desktop with External
 Authentication and Client Credential Auth. Other tools, forms of
 authentication, and functionality of the ODBC specification were
