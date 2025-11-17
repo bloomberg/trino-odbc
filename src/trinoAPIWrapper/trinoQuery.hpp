@@ -7,6 +7,7 @@
 
 #include "columnDescription.hpp"
 #include "connectionConfig.hpp"
+#include "TrinoOdbcErrorHandler.hpp"
 
 using json = nlohmann::json;
 
@@ -79,7 +80,7 @@ class TrinoQuery {
     const json& getRowAtIndex(int64_t) const;
 
     void setQueryId(const std::string& id);
-    const std::string& getQueryId() const; // <-- Add this getter
+    const std::string& getQueryId() const;
     const bool hasError() const;
     const TrinoOdbcErrorHandler::OdbcError& getError() const;
 };

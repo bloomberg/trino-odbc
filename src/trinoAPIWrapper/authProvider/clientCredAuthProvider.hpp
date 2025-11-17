@@ -12,4 +12,7 @@ getClientCredAuthProvider(std::string hostname,
                           std::string oidcDiscoveryUrl,
                           std::string clientId,
                           std::string clientSecret,
-                          std::string oidcScope);
+                          std::string oidcScope,
+                          std::string grantType,
+                          std::string tokenEndpoint);
+

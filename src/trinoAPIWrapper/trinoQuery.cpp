@@ -92,8 +92,6 @@ UpdateStatus TrinoQuery::updateSelfFromResponse() {
 
   if (response_json.contains("error")) {
     this->error = true;
-    std::string errorDetails;
-    // errorDetails = parseTrinoError(response_json["error"]);
 
     odbcError = TrinoOdbcErrorHandler::FromTrinoJson(response_json["error"],
                                                      getQueryId());
