@@ -133,6 +133,10 @@ std::string refreshDeviceCredAuth(ClientCredAuthParams& params) {
       params.responseData->clear();
       params.responseHeaderData->clear();
 
+      headers = nullptr;
+      headers                    = curl_slist_append(
+          headers, "Content-Type: application/x-www-form-urlencoded");
+      curl_easy_setopt(params.curl, CURLOPT_HTTPHEADER, headers);
       // Send the polling request
       curl_easy_setopt(params.curl, CURLOPT_URL, tokenEndpoint.c_str());
       curl_easy_setopt(params.curl, CURLOPT_POSTFIELDS, tokenPost.c_str());
@@ -140,6 +144,8 @@ std::string refreshDeviceCredAuth(ClientCredAuthParams& params) {
       WriteLog(LL_DEBUG,
                "  Polling token endpoint HTTP response code: " +
                    std::to_string(res));
+      curl_slist_free_all(
+          headers); // Always free curl headers to avoid memory leaks
 
       // Parse the response
       json pollingResponse = json::parse(*params.responseData);
