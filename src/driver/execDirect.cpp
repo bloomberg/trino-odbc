@@ -29,6 +29,7 @@ SQLRETURN SQL_API SQLExecDirect(SQLHSTMT StatementHandle,
     trinoQuery->setQuery(queryText);
     WriteLog(LL_DEBUG, "  POSTing Query");
     trinoQuery->post();
+    trinoQuery->poll(ToCompletion);
     WriteLog(LL_DEBUG, "  Setting to executed");
     statement->executed = true;
     return SQL_SUCCESS;
