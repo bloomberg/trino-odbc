@@ -11,6 +11,7 @@ class DSNForm {
     HWND parent;
     DriverConfig configResult;
     bool readOnlyDSN = false;
+    void ShowDSNPage2();
 
   public:
     DSNForm(HWND parent, std::map<std::string, std::string> attributes);
