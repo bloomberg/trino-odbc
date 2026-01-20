@@ -7,7 +7,6 @@
 #include "authProvider/clientCredAuthProvider.hpp"
 #include "authProvider/deviceFlowAuthProvider.hpp"
 #include "authProvider/externalAuthProvider.hpp"
-#include "authProvider/resourceOwnerPasswordFlowAuthProvider.hpp"
 #include "authProvider/noAuthProvider.hpp"
 #include "base64.hpp"
 
