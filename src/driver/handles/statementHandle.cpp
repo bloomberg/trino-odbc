@@ -159,3 +159,7 @@ void Statement::setError(ErrorInfo errorInfo) {
 ErrorInfo Statement::getError() {
   return this->errorInfo;
 }
+
+void Statement::setQueryId(const std::string& id) {
+  queryId = id;
+}

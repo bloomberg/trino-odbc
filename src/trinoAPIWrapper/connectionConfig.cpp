@@ -5,8 +5,10 @@
 #include "../util/stringTrim.hpp"
 #include "../util/writeLog.hpp"
 #include "authProvider/clientCredAuthProvider.hpp"
+#include "authProvider/deviceFlowAuthProvider.hpp"
 #include "authProvider/externalAuthProvider.hpp"
 #include "authProvider/noAuthProvider.hpp"
+#include "base64.hpp"
 
 using json = nlohmann::json;
 
@@ -41,19 +43,35 @@ curlHeaderCallback(char* buffer, size_t size, size_t nitems, void* userdata) {
   return nitems * size;
 }
 
-ConnectionConfig::ConnectionConfig(std::string hostname,
+ConnectionConfig::ConnectionConfig(const std::string& hostname,
                                    unsigned short port,
                                    ApiAuthMethod authMethod,
-                                   std::string connectionName,
-                                   std::string oidcDiscoveryUrl,
-                                   std::string clientId,
-                                   std::string clientSecret,
-                                   std::string oidcScope) {
+                                   const std::string& connectionName,
+                                   const std::string& oidcDiscoveryUrl,
+                                   const std::string& clientId,
+                                   const std::string& clientSecret,
+                                   const std::string& oidcScope,
+                                   const std::string& grantType,
+                                   const std::string& tokenEndpoint,
+                                   const std::string& authEndpoint,
+                                   const std::string& userName,
+                                   const std::string& password,
+                                   OidcEndpointMethod oidcMethod) {
+
   this->hostname       = hostname;
   this->port           = port;
   this->connectionName = connectionName;
   this->authMethod     = authMethod;
+  this->tokenEndpoint  = tokenEndpoint;
+  this->grantType      = grantType;
+  this->userName       = userName;
+  this->password       = password;
+
   this->curl           = nullptr;
+
+  if (hostname.empty()) {
+    throw std::invalid_argument("hostname");
+  }
 
   switch (authMethod) {
     case AM_NO_AUTH: {
@@ -72,9 +90,35 @@ ConnectionConfig::ConnectionConfig(std::string hostname,
                                                       oidcDiscoveryUrl,
                                                       clientId,
                                                       clientSecret,
+                                                      oidcScope,
+                                                      grantType,
+                                                      tokenEndpoint);
+      break;
+    }
+    case AM_DEVICE_CODE: {
+      this->authConfigPtr = getDeviceFlowAuthProvider(hostname,
+                                                      port,
+                                                      connectionName,
+                                                      oidcDiscoveryUrl,
+                                                      clientId,
+                                                      clientSecret,
                                                       oidcScope);
       break;
     }
+    case AM_USERNAME_AND_PASSWORD: {
+      this->authConfigPtr = getUserNameAndPasswordAuthProvider(hostname,
+                                                      port,
+                                                      connectionName,
+                                                      oidcDiscoveryUrl,
+                                                      userName,
+                                                      password,
+                                                      oidcScope,
+        grantType,
+        tokenEndpoint,
+        clientId);
+      break;
+    }
+
     default: {
       WriteLog(LL_ERROR,
                "  ERROR: connection config got unimplemented external auth "
@@ -101,7 +145,8 @@ ApiAuthMethod const ConnectionConfig::getAuthMethod() {
 }
 
 std::string const ConnectionConfig::getStatementUrl() {
-  return (this->hostname) + ":" + std::to_string(port) + "/v1/statement";
+  std::string scheme = port == 443 || port == 8443 ? "https://" : "http://";
+  return scheme +(this->hostname) + ":" + std::to_string(port) + "/v1/statement";
 }
 
 CURL* ConnectionConfig::getCurl() {
@@ -141,26 +186,46 @@ curlSetup:
   // how it was used before.
   curl_easy_setopt(this->curl, CURLOPT_HTTPGET, true);
 
-  // Set up any required headers if needed.
-  if (this->authConfigPtr->headers.size() > 0) {
-    struct curl_slist* headers = nullptr;
-    for (const auto pair : this->authConfigPtr->headers) {
-      std::string nextHeader = pair.first + ": " + pair.second;
-      headers                = curl_slist_append(headers, nextHeader.c_str());
+  #if DEBUG
+  //disallow peer cert verification in debug builds
+  curl_easy_setopt(this->curl, CURLOPT_SSL_VERIFYPEER, 0);
+  #endif
+
+  if (getAuthMethod() != AM_USERNAME_AND_PASSWORD) {
+    // Set up any required headers if needed.
+    if (this->authConfigPtr->headers.size() > 0) {
+      struct curl_slist* headers = nullptr;
+      for (const auto pair : this->authConfigPtr->headers) {
+        std::string nextHeader = pair.first + ": " + pair.second;
+        headers                = curl_slist_append(headers, nextHeader.c_str());
+      }
+      curl_easy_setopt(curl, CURLOPT_HTTPHEADER, headers);
     }
+
+    // Now that we have a fully configured CURL handle, check if we need to do
+    // any required auth steps. We may need to use the configured handle to
+    // perform the authentication.
+    if (this->authConfigPtr->isExpired()) {
+      WriteLog(LL_TRACE,
+               "  Detected expired authentication. Reauthenticating...");
+      this->authConfigPtr->refresh(
+          this->curl, &(this->responseData), &(this->responseHeaderData));
+      goto curlSetup;
+    }
+  } else {
+    struct curl_slist* headers = nullptr;
+    std::string userNameHeader("X-Trino-User: ");
+    userNameHeader += this->userName;
+    headers                    = curl_slist_append(headers,  userNameHeader.c_str() );
+    //
+
+    std::string authorizationHeader("Authorization: Basic ");
+    auto encoded = base64::to_base64(this->userName + ":" + this->password);
+    authorizationHeader += encoded;
+    headers = curl_slist_append(headers, authorizationHeader.c_str());
     curl_easy_setopt(curl, CURLOPT_HTTPHEADER, headers);
   }
 
-  // Now that we have a fully configured CURL handle, check if we need to do
-  // any required auth steps. We may need to use the configured handle to
-  // perform the authentication.
-  if (this->authConfigPtr->isExpired()) {
-    WriteLog(LL_TRACE,
-             "  Detected expired authentication. Reauthenticating...");
-    this->authConfigPtr->refresh(
-        this->curl, &(this->responseData), &(this->responseHeaderData));
-    goto curlSetup;
-  }
 
   return this->curl;
 }
