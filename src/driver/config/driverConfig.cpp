@@ -28,22 +28,22 @@ std::map<std::string, LogLevel> LOG_NAME_TO_LOG_LEVEL = {
 };
 
 std::vector<std::string> AUTH_METHOD_NAMES = {
-    "No Auth", "External Auth", "OIDC Client Cred Auth"};
+    "No Auth", "External Auth", "OIDC Client Cred Auth", "Device Flow"};
 
 std::vector<ApiAuthMethod> AUTH_METHOD_VALUES = {
-    AM_NO_AUTH, AM_EXTERNAL_AUTH, AM_CLIENT_CRED_AUTH};
+    AM_NO_AUTH, AM_EXTERNAL_AUTH, AM_CLIENT_CRED_AUTH, AM_DEVICE_FLOW};
 
 std::map<ApiAuthMethod, std::string> AUTH_METHOD_TO_AUTH_NAME = {
     std::make_pair(AM_NO_AUTH, "No Auth"),
     std::make_pair(AM_EXTERNAL_AUTH, "External Auth"),
     std::make_pair(AM_CLIENT_CRED_AUTH, "OIDC Client Cred Auth"),
-};
+    std::make_pair(AM_DEVICE_FLOW, "Device Flow")};
 
 std::map<std::string, ApiAuthMethod> AUTH_NAME_TO_AUTH_METHOD = {
     std::make_pair("No Auth", AM_NO_AUTH),
     std::make_pair("External Auth", AM_EXTERNAL_AUTH),
     std::make_pair("Oidc Client Cred Auth", AM_CLIENT_CRED_AUTH),
-};
+    std::make_pair("Device Flow", AM_DEVICE_FLOW)};
 
 
 // All default values - do not miss any!
@@ -159,6 +159,20 @@ void DriverConfig::setOidcScope(std::string oidcScope) {
   this->oidcScope = oidcScope;
 }
 
+std::string DriverConfig::getTokenEndpoint() {
+  return this->tokenEndpoint;
+}
+void DriverConfig::setTokenEndpoint(std::string tokenEndpoint) {
+  this->tokenEndpoint = tokenEndpoint;
+}
+
+std::string DriverConfig::getGrantType() {
+  return this->grantType;
+}
+void DriverConfig::setGrantType(std::string grantType) {
+  this->grantType = grantType;
+}
+
 // IsSaved
 bool DriverConfig::getIsSaved() {
   return this->isSaved;
@@ -218,6 +232,12 @@ DriverConfig driverConfigFromKVPs(std::map<std::string, std::string> kvps) {
   }
   if (kvps.count("oidcscope")) {
     config.setOidcScope(kvps.at("oidcscope"));
+  }
+  if (kvps.count("granttype")) {
+    config.setGrantType(kvps.at("granttype"));
+  }
+  if (kvps.count("tokenendpoint")) {
+    config.setTokenEndpoint(kvps.at("tokenendpoint"));
   }
 
   return config;

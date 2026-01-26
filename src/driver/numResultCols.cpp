@@ -16,5 +16,9 @@ SQLRETURN SQL_API SQLNumResultCols(SQLHSTMT StatementHandle,
   WriteLog(LL_TRACE,
            "  Result col count is set to: " + std::to_string(*ColumnCount));
 
-  return SQL_SUCCESS;
+  if (statement->trinoQuery->hasError()) {
+    return SQL_ERROR;
+  } else {
+    return SQL_SUCCESS;
+  }
 }

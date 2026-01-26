@@ -25,6 +25,8 @@ class DriverConfig {
     std::string clientId         = "";
     std::string clientSecret     = "";
     std::string oidcScope        = "";
+    std::string tokenEndpoint    = "";
+    std::string grantType        = "";
 
     // Metadata describing the status of this config object.
     bool isSaved = false;
@@ -68,6 +70,15 @@ class DriverConfig {
 
     bool getIsSaved();
     void setIsSaved(bool isSaved);
+
+    std::string getTokenEndpoint();
+    void setTokenEndpoint(std::string tokenEndpoint);
+
+    std::string getGrantType();
+    void setGrantType(std::string grantType);
+
+    std::string serialize();
+    static DriverConfig deserialize(const std::string& jsonStr);
 };
 
 DriverConfig driverConfigFromKVPs(std::map<std::string, std::string> kvps);

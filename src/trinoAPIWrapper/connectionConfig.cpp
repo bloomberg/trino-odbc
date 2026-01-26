@@ -5,8 +5,10 @@
 #include "../util/stringTrim.hpp"
 #include "../util/writeLog.hpp"
 #include "authProvider/clientCredAuthProvider.hpp"
+#include "authProvider/deviceFlowAuthProvider.hpp"
 #include "authProvider/externalAuthProvider.hpp"
 #include "authProvider/noAuthProvider.hpp"
+
 
 using json = nlohmann::json;
 
@@ -48,12 +50,22 @@ ConnectionConfig::ConnectionConfig(std::string hostname,
                                    std::string oidcDiscoveryUrl,
                                    std::string clientId,
                                    std::string clientSecret,
-                                   std::string oidcScope) {
+                                   std::string oidcScope,
+                                   std::string grantType,
+                                   std::string tokenEndpoint) {
+
   this->hostname       = hostname;
   this->port           = port;
   this->connectionName = connectionName;
   this->authMethod     = authMethod;
+  this->tokenEndpoint  = tokenEndpoint;
+  this->grantType      = grantType;
+
   this->curl           = nullptr;
+
+  if (hostname.empty()) {
+    throw std::invalid_argument("hostname");
+  }
 
   switch (authMethod) {
     case AM_NO_AUTH: {
@@ -72,9 +84,22 @@ ConnectionConfig::ConnectionConfig(std::string hostname,
                                                       oidcDiscoveryUrl,
                                                       clientId,
                                                       clientSecret,
+                                                      oidcScope,
+                                                      grantType,
+                                                      tokenEndpoint);
+      break;
+    }
+    case AM_DEVICE_FLOW: {
+      this->authConfigPtr = getDeviceFlowAuthProvider(hostname,
+                                                      port,
+                                                      connectionName,
+                                                      oidcDiscoveryUrl,
+                                                      clientId,
+                                                      clientSecret,
                                                       oidcScope);
       break;
     }
+
     default: {
       WriteLog(LL_ERROR,
                "  ERROR: connection config got unimplemented external auth "
