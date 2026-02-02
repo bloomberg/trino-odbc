@@ -21,6 +21,9 @@ class Statement {
     SQLLEN fetchedPosition = -1;
     ErrorInfo errorInfo;
 
+    // Trino Query ID
+    std::string queryId;
+
   public:
     Statement(ConnectionConfig* connectionConfig);
     ~Statement();
@@ -49,4 +52,6 @@ class Statement {
 
     void setError(ErrorInfo errorInfo);
     ErrorInfo getError();
+
+    void setQueryId(const std::string& id);
 };

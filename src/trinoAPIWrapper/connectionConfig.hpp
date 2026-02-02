@@ -16,6 +16,9 @@ class ConnectionConfig {
     std::string hostname;
     unsigned short port;
     std::string connectionName;
+    std::string tokenEndpoint;
+    std::string grantType;
+
     ApiAuthMethod authMethod;
     std::unique_ptr<AuthConfig> authConfigPtr;
     std::vector<std::function<void(ConnectionConfig*)>> onDisconnectCallbacks;
@@ -33,7 +36,10 @@ class ConnectionConfig {
                      std::string oidcDiscoveryUrl,
                      std::string clientId,
                      std::string clientSecret,
-                     std::string oidcScope);
+                     std::string oidcScope,
+                     std::string grantType,
+                     std::string tokenEndpoint);
+
     ~ConnectionConfig();
     std::string const getHostname();
     std::string const getStatementUrl();
