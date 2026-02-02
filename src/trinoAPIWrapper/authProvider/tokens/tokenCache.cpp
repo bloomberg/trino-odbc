@@ -137,12 +137,38 @@ TokenCacheEntry readTokenCache(const std::string& tokenId) {
       tokenData.value("encryptedAccessToken", "");
   std::string encryptedRefreshToken =
       tokenData.value("encryptedRefreshToken", "");
-  std::string accessToken  = userDecryptString(encryptedAccessToken);
-  std::string refreshToken = userDecryptString(encryptedRefreshToken);
 
-  // Return a cache entry for these.
-  WriteLog(LL_TRACE, "  Token cache read successfully");
-  return TokenCacheEntry(accessToken, refreshToken, tokenId);
+  try {
+    std::string accessToken  = userDecryptString(encryptedAccessToken);
+    std::string refreshToken = userDecryptString(encryptedRefreshToken);
+
+    // Return a cache entry for these.
+    WriteLog(LL_TRACE, "  Token cache read successfully");
+    return TokenCacheEntry(accessToken, refreshToken, tokenId);
+  } catch (const std::runtime_error& e) {
+    // There was an error getting the encrypted content. Clean it up and remove
+    // from TrinoODBCTokenCache.json
+    WriteLog(LL_ERROR,
+             "  ERROR: Failed to decrypt token from cache: " +
+                 std::string(e.what()));
+    WriteLog(LL_WARN,
+             "  Deleting potentially corrupted token entry from cache.");
+
+    // Remove the corrupted token data
+    if (jsonData.contains(tokenId)) {
+      jsonData.erase(tokenId);
+      std::ofstream outputFile(filePath);
+      if (outputFile.is_open()) {
+        outputFile << jsonData.dump(TOKEN_CACHE_JSON_INDENT);
+        outputFile.close();
+      } else {
+        WriteLog(LL_ERROR,
+                 "  ERROR: Could not open token cache file to delete "
+                 "corrupted entry.");
+      }
+    }
+    return TokenCacheEntry("", "", tokenId);
+  }
 }
 
 
