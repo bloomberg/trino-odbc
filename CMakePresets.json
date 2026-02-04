@@ -40,6 +40,27 @@
       }
     },
     {
+      "name": "arm64-debug",
+      "displayName": "arm64 Debug",
+      "inherits": "windows-base",
+      "architecture": {
+        "value": "arm64",
+        "strategy": "external"
+      },
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Debug",
+        "VCPKG_TARGET_TRIPLET": "arm64-windows"
+      }
+    },
+    {
+      "name": "arm64-release",
+      "displayName": "arm64 Release",
+      "inherits": "arm64-debug",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Release"
+      }
+    },
+    {
       "name": "x86-debug",
       "displayName": "x86 Debug",
       "inherits": "windows-base",
@@ -72,6 +93,18 @@
       "name": "x64-debug",
       "displayName": "x64 Debug",
       "configurePreset": "x64-debug",
+      "configuration": "Debug"
+    },
+    {
+      "name": "arm64-release",
+      "displayName": "arm64 Release",
+      "configurePreset": "arm64-release",
+      "configuration": "Release"
+    },
+    {
+      "name": "arm64-debug",
+      "displayName": "arm64 Debug",
+      "configurePreset": "arm64-debug",
       "configuration": "Debug"
     },
     {
